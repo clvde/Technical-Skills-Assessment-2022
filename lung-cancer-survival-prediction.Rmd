@@ -1,0 +1,115 @@
+---
+title: "Predicting Lung Cancer Survival 2022"
+author: "Courtney Van Den Elzen"
+date: "Jan 30th, 2023"
+output: html_notebook
+---
+
+### Libraries
+```{r, echo=FALSE}
+library(tidyverse)
+
+library(survival)
+```
+
+### Data
+```{r}
+
+# Clinical data:
+# (1) ID - patient identifier [1-190]
+# (2) Outcome - alive/dead ["Alive"/"Dead"]
+# (3) Survival.months - followup time (length of time at which outcome was assessed) [9.0-71.0]
+# (4) Age - patient age at diagnosis in years [56-84]
+# (5) Grade - tumor grade [1-4 or missing (9 = missing)]
+# (6) Num.Primaries - number of primary tumors
+# (7) T - tumor stage
+# (8) N - number of metastasis to lymph nodes
+# (9) M - number of distance metastases
+# (10) Radiation - whether the patient had radiation (5 = yes, 0 = no)
+# (11) Stage - Stage at diagnosis
+# (12) Primary.Site - Location of primary tumor
+# (13) Histology - type of tumor (microscopic structure)
+# (14) Tumor.Size - size at diagnosis
+# (15) Num.Mutated.Genes - number of genetic mutations found in tumor
+# (16) Num.Mutations - number of genes with mutation
+clindat <- read_csv("./clinical.csv")
+
+# (1) ID - Patient ID
+# (2) Gene - Name of mutated gene
+genodat <- read_csv("./genomics.csv")
+
+```
+
+
+### Clean Data: Clinical
+```{r}
+
+clindat_clean <- 
+     
+     clindat %>%
+     
+     # correct data types
+     dplyr::mutate(ID = as.factor(ID), 
+                   Grade = as.integer(Grade),
+                   Survival.Months = as.integer(Survival.Months),
+                   Radiation = as.factor(Radiation),
+                   Num.Primaries = as.factor(Num.Primaries),
+                   Num.Mutated.Genes = as.integer(Num.Mutated.Genes),
+                   Num.Mutations = as.integer(Num.Mutations)) %>%
+     
+     # rename to avoid built-in function incompatibilities
+     dplyr::rename(Tumor.Stage = "T") %>%
+     
+     # clean data, add NAs where needed, change coding for clarity
+     dplyr::mutate(Grade = na_if(Grade, 9),
+                   Tumor.Stage = as.factor(na_if(Tumor.Stage, "UNK")),
+                   N = as.numeric(na_if(N, "NULL")),
+                   M = as.numeric(na_if(M, "NULL")),
+                   
+                   # assuming that 0 means "no" here
+                   Radiation = 
+                        as.factor(
+                             case_when(Radiation == 0 ~ "no",
+                                       Radiation == 5 ~ "yes")),
+                   
+                   # change NULL to NA so R recognizes it. 
+                   Tumor.Size = 
+                        as.numeric(
+                             na_if(Tumor.Size, "NULL")),
+                   
+                   # assuming these are the final tumor sizes.
+                   # recoded levels to match the coding in "Tumor.Stage"
+                   Stage = 
+                        as.factor(
+                             case_when(Stage == "IV" ~ "4",
+                                       Stage == "IIIA" ~ "3a",
+                                       Stage == "IA" ~ "1a",
+                                       Stage == "IVB" ~ "4b",
+                                       Stage == "IIA" ~ "2a",
+                                       Stage == "IIIB" ~ "3b",
+                                       Stage == "IIB" ~ "2b",
+                                       Stage == "IB" ~ "1b",
+                                       Stage == "1B" ~ "1b")),
+                   
+                   # typo
+                   Primary.Site = 
+                        as.factor(
+                             case_when(
+                                  Primary.Site == "Righ Upper Lobe" ~ "Right Upper Lobe",
+                                  TRUE ~ Primary.Site)))
+
+head(clindat_clean)
+```
+
+### Clean Data: Genomic Data
+```{r}
+
+# change both columns to factors. 
+genodat_clean <- 
+     genodat %>%
+     dplyr::mutate(ID = as.factor(ID),
+                   Gene = as.factor(Gene))
+
+
+head (clindat_clean)
+```
